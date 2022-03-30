@@ -27,5 +27,5 @@ jobs:
         if: ${{ github.event.release.tag_name == '' }}
         with:
           push: true
-          tags: ghcr.io/snorwin/haproxy-wirh-reload:latest
+          tags: ghcr.io/snorwin/haproxy:latest
           platforms: linux/amd64
