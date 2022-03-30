@@ -12,4 +12,4 @@ FROM docker.io/haproxy:2.5
 COPY --from=builder /build/haproxy-reload-wrapper /usr/local/sbin/haproxy-reload-wrapper
 COPY --from=builder /build/dumb-init /usr/local/sbin/dumb-init
 
-ENTRYPOINT ["/usr/local/bin/dumb-init", "--", "/usr/local/sbin/haproxy-reload-wrapper"]
+ENTRYPOINT ["/usr/local/sbin/dumb-init", "--", "/usr/local/sbin/haproxy-reload-wrapper", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
