@@ -47,9 +47,9 @@ func main() {
 	// flag used for termination handling
 	var terminated bool
 
-	// initialize a signal handler for SIGINT, SIGKILL
+	// initialize a signal handler for SIGINT, SIGTERM
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGKILL)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// endless for loop which handles signals, file system events as well as termination of the child process
 	for {
@@ -87,7 +87,7 @@ func main() {
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
 		case sig := <-sigs:
-			// handle SIGINT, SIGKILL and propagate it to child process
+			// handle SIGINT, SIGTERM and propagate it to child process
 			log.Notice(fmt.Sprintf("recived singal %d", sig))
 
 			if cmd.Process == nil {
