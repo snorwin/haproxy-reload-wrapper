@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/snorwin/haproxy-reload-wrapper/pkg/exec"
-	"github.com/snorwin/haproxy-reload-wrapper/pkg/log"
-	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/snorwin/haproxy-reload-wrapper/pkg/exec"
+	"github.com/snorwin/haproxy-reload-wrapper/pkg/log"
+	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
 )
 
 func main() {
