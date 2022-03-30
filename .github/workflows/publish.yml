@@ -10,6 +10,9 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tag: [latest, alpine, 2.5, 2.5-alpine, 2.5.5, 2.5.5-alpine]
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -21,11 +24,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push master
+      - run: |
+          sed -i -e "s|%VERSION%|${{ matrix.tag }}|g" Dockerfile
+      - name: Build and push
         id: docker_build_master
         uses: docker/build-push-action@v2
-        if: ${{ github.event.release.tag_name == '' }}
         with:
           push: true
-          tags: ghcr.io/snorwin/haproxy:latest
+          tags: ghcr.io/snorwin/haproxy:${{ matrix.tag }}
           platforms: linux/amd64

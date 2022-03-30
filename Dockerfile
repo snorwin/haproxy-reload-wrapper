@@ -5,7 +5,7 @@ WORKDIR /build
 COPY .. .
 RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux go build -a -o haproxy-reload-wrapper .
 
-FROM docker.io/haproxy:2.5
+FROM docker.io/haproxy:%VERSION%
 
 COPY --from=builder /build/haproxy-reload-wrapper /usr/local/sbin/haproxy-reload-wrapper
 
