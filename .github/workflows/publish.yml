@@ -24,7 +24,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Modify Dockerfile
+        run: |
           sed -i -e "s|%VERSION%|${{ matrix.tag }}|g" Dockerfile
       - name: Build and push
         id: docker_build_master
