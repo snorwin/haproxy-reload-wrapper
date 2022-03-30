@@ -68,7 +68,6 @@ func main() {
 			if err := tmp.AsyncRun(); err != nil {
 				log.Warning(err.Error())
 				log.Warning("reload failed")
-
 				continue
 			}
 			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
@@ -83,6 +82,16 @@ func main() {
 				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
 				log.Warning(fmt.Sprintf("process %d termianted unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
 				log.Warning("reload failed")
+			}
+
+			// re-add watch if file was removed - config maps are updated by removing/adding a symlink
+			if isRemove(event) {
+				if err := fswatch.Add(cfgFile); err != nil {
+					log.Alert(fmt.Sprintf("watch file failed : %v", err))
+					continue
+				}
+
+				log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
 			}
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
