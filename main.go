@@ -42,7 +42,7 @@ func main() {
 		log.Notice(fmt.Sprintf("watch file failed : %v", err))
 		os.Exit(1)
 	}
-	log.Notice(fmt.Sprintf("watch file :  %s", cfgFile))
+	log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
 
 	// flag used for termination handling
 	var terminated bool
@@ -55,7 +55,8 @@ func main() {
 	for {
 		select {
 		case event := <-fswatch.Events:
-			if event.Op&fsnotify.Write != fsnotify.Write {
+			// only care about events which may modify the contents of the file
+			if !(isWrite(event) || isRemove(event) || isCreate(event)) {
 				continue
 			}
 			log.Notice(fmt.Sprintf("fs event for file %s : %v", cfgFile, event.Op))
@@ -117,4 +118,16 @@ func main() {
 			os.Exit(cmd.ProcessState.ExitCode())
 		}
 	}
+}
+
+func isWrite(event fsnotify.Event) bool {
+	return event.Op&fsnotify.Write == fsnotify.Write
+}
+
+func isCreate(event fsnotify.Event) bool {
+	return event.Op&fsnotify.Create == fsnotify.Create
+}
+
+func isRemove(event fsnotify.Event) bool {
+	return event.Op&fsnotify.Remove == fsnotify.Remove
 }
