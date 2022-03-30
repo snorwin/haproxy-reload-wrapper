@@ -2,15 +2,14 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-
 	"github.com/fsnotify/fsnotify"
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/exec"
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/log"
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 )
 
 func main() {
@@ -47,9 +46,9 @@ func main() {
 	// flag used for termination handling
 	var terminated bool
 
-	// initialize a signal handler for SIGINT, SIGTERM
+	// initialize a signal handler for SIGINT, SIGTERM and SIGUSR1 (for OpenShift)
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 
 	// endless for loop which handles signals, file system events as well as termination of the child process
 	for {
@@ -75,12 +74,12 @@ func main() {
 			select {
 			case <-cmd.Terminated:
 				// old haproxy terminated - successfully started a new process replacing the old one
-				log.Notice(fmt.Sprintf("process %d termianted : %s", cmd.Process.Pid, cmd.Status()))
+				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
 				log.Notice("reload successful")
 				cmd = tmp
 			case <-tmp.Terminated:
 				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
-				log.Warning(fmt.Sprintf("process %d termianted unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
+				log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
 				log.Warning("reload failed")
 			}
 
@@ -97,7 +96,7 @@ func main() {
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
 		case sig := <-sigs:
-			// handle SIGINT, SIGTERM and propagate it to child process
+			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
 			log.Notice(fmt.Sprintf("recived singal %d", sig))
 
 			if cmd.Process == nil {
@@ -123,7 +122,7 @@ func main() {
 				}
 			}
 
-			log.Notice(fmt.Sprintf("process %d termianted : %s", cmd.Process.Pid, cmd.Status()))
+			log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
 			os.Exit(cmd.ProcessState.ExitCode())
 		}
 	}
