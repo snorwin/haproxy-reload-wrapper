@@ -1,4 +1,4 @@
-name: Test
+name: E2E Tests
 
 on:
   push:
@@ -48,3 +48,53 @@ jobs:
         run: |
           kubectl cluster-info
           helm install test test/helm/ --set image=ghcr.io/snorwin/haproxy:${{ github.sha }}
+      - name: Verify that client can connect to server using HAProxy
+        run: |
+          kubectl apply -f test/pod01.yaml
+          sleep 90
+          if [ $(kubectl logs http-client-01 | grep "HTTP/1.0 200" | wc -l) -le 0 ]; then
+            exit 1
+          fi
+      - name: Change HAProxy configuration (change timeout)
+        run: |
+          kubectl get cm haproxy-config -o yaml | sed 's/timeout client 10s/timeout client 15s/' | kubectl apply -f -
+          sleep 90
+      - name: Verify that configuration was reloaded hitless
+        run: |
+          if [ $( kubectl logs haproxy | grep "reload successful" | wc -l) -ne 1 ]; then
+            exit 1
+          fi
+          if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
+            exit 1
+          fi
+      - name: Change HAProxy configuration (invalid)
+        run: |
+          kubectl apply -f test/configmap-01.yaml
+          sleep 90
+      - name: Verify that configuration was NOT reloaded
+        run: |
+          if [ $( kubectl logs haproxy | grep "reload failed" | wc -l) -ne 1 ]; then
+            exit 1
+          fi
+          if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
+            exit 1
+          fi
+      - name: Change HAProxy configuration (add listen)
+        run: |
+          kubectl apply -f test/configmap-02.yaml
+          sleep 90
+      - name: Verify that configuration was reloaded hitless
+        run: |
+          if [ $( kubectl logs haproxy | grep "reload successful" | wc -l) -ne 2 ]; then
+            exit 1
+          fi
+          if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
+            exit 1
+          fi
+      - name: Verify that new client can connect to server using HAProxy
+        run: |
+          kubectl apply -f test/pod02.yaml
+          sleep 90
+          if [ $(kubectl logs http-client-02 | grep "HTTP/1.0 200" | wc -l) -le 0 ]; then
+            exit 1
+          fi

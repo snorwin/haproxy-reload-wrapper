@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-client-01
+  labels:
+    app.kubernetes.io/name: http-client-01
+spec:
+  containers:
+    - name: siege
+      image: ghcr.io/snorwin/siege:4.1.2
+      command:
+        - /bin/bash
+        - -c
+        - siege -c10 http://haproxy-service:8080
+---

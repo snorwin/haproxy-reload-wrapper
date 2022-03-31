@@ -34,13 +34,3 @@ jobs:
           build-args: |
             VERSION=main
             HASH=${{ github.sha }}
-      - name: Prune ghcr images
-        uses: vlaurin/action-ghcr-prune@main
-        with:
-          token: ${{ secrets.PRUNE_IMAGE_TOKEN }}
-          container: ${{github.event.repository.name}}
-          dry-run: false
-          older-than: 7
-          keep-last: 2
-          untagged: true
-          keep-tags-regexes: (latest|alpine|2.5|2.5-alpine|2.5.5|2.5.5-alpine)
