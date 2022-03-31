@@ -105,7 +105,7 @@ func main() {
 			log.Alert(err.Error())
 		case sig := <-sigs:
 			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
-			log.Notice(fmt.Sprintf("recived singal %d", sig))
+			log.Notice(fmt.Sprintf("received singal %d", sig))
 
 			if cmd.Process == nil {
 				// received termination suddenly before child process was even started
@@ -122,7 +122,7 @@ func main() {
 		case <-cmd.Terminated:
 			// check for unexpected termination
 			if !terminated {
-				log.Emergency(fmt.Sprintf("proccess %d teminated unexpectedly : %s", cmd.Process.Pid, cmd.Status()))
+				log.Emergency(fmt.Sprintf("process %d teminated unexpectedly : %s", cmd.Process.Pid, cmd.Status()))
 				if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
 					os.Exit(cmd.ProcessState.ExitCode())
 				} else {
