@@ -13,7 +13,14 @@ import (
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
 )
 
+var (
+	Version = "v0.0.0"
+	Hash    = ""
+)
+
 func main() {
+	log.Notice(fmt.Sprintf("haproxy-reload-wrapper version is %s-%s", Version, Hash))
+
 	// fetch the absolut path of the haproxy executable
 	executable, err := utils.LookupExecutablePathAbs("haproxy")
 	if err != nil {

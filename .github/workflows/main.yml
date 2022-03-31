@@ -1,16 +1,12 @@
-name: Publish Release
+name: Publish (main)
 
 on:
-  release:
-    types:
-      - published
+  push:
+    branches: main
 
 jobs:
   image:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        tag: [latest, alpine, 2.5, 2.5-alpine, 2.5.5, 2.5.5-alpine]
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -26,15 +22,25 @@ jobs:
         uses: actions/checkout@v2
       - name: Modify Dockerfile
         run: |
-          sed -i -e "s|%VERSION%|${{ matrix.tag }}|g" Dockerfile
+          sed -i -e "s|%VERSION%|latest|g" Dockerfile
       - name: Build and push
         id: docker_build_master
         uses: docker/build-push-action@v2
         with:
           context: .
           push: true
-          tags: ghcr.io/snorwin/haproxy:${{ matrix.tag }}
+          tags: ghcr.io/snorwin/haproxy:latest
           platforms: linux/amd64
           build-args: |
-            VERSION=${{ github.event.release.tag_name }}
+            VERSION=main
             HASH=${{ github.sha }}
+      - name: Prune ghcr images
+        uses: vlaurin/action-ghcr-prune@main
+        with:
+          token: ${{ secrets.PRUNE_IMAGE_TOKEN }}
+          container: ${{github.event.repository.name}}
+          dry-run: false
+          older-than: 7
+          keep-last: 2
+          untagged: true
+          keep-tags-regexes: (latest|alpine|2.5|2.5-alpine|2.5.5|2.5.5-alpine)

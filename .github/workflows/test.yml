@@ -33,6 +33,9 @@ jobs:
           push: true
           tags: ghcr.io/snorwin/haproxy:${{ github.sha }}
           platforms: linux/amd64
+          build-args: |
+            VERSION=test
+            HASH=${{ github.sha }}
   test:
     needs: image
     runs-on: ubuntu-latest
