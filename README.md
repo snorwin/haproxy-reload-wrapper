@@ -10,7 +10,7 @@
 The haproxy-reload-wrapper watches the HAProxy configuration file using an inotify watcher and, if a change is detected, performs a hitless reload by transferring listening sockets from the old HAProxy process to the new, reloaded process. If the new HAProxy process fails to start or the changed configuration is invalid, the old process continues to operate to avoid any interruptions. More details about the reload mechanism in HAProxy can be found in the following blog post: [Truly Seamless Reloads with HAProxy – No More Hacks!](https://www.haproxy.com/blog/truly-seamless-reloads-with-haproxy-no-more-hacks/).
 
 ## Features
-- Watch for changes in the configuration file and trigger seamless relaods of HAProxy
+- Tracking changes in the configuration file and triggering seamless reloads of the HAProxy
 - Graceful signal (termination) handling and transparent management of HAProxy processes
 - Support for configuration files from mounted `ConfigMap`
 
