@@ -32,6 +32,7 @@ func main() {
 	cmd := exec.Command(executable, os.Args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = utils.LoadEnvFile()
 	if err := cmd.AsyncRun(); err != nil {
 		log.Emergency(err.Error())
 		os.Exit(1)
@@ -72,6 +73,7 @@ func main() {
 			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
 			tmp.Stdout = os.Stdout
 			tmp.Stderr = os.Stderr
+			tmp.Env = utils.LoadEnvFile()
 			if err := tmp.AsyncRun(); err != nil {
 				log.Warning(err.Error())
 				log.Warning("reload failed")

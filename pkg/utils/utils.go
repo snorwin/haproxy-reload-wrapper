@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // LookupExecutablePathAbs lookup the $PATH to find the absolut path of an executable
@@ -35,4 +36,17 @@ func LookupHAProxySocketPath() string {
 	}
 
 	return "/var/run/haproxy.sock"
+}
+
+// LoadEnvFile load additional dynamic environment variables from a file which contains them in the form "key=value".
+func LoadEnvFile() []string {
+	env := os.Environ()
+
+	if file, ok := os.LookupEnv("ENV_FILE"); ok {
+		if data, err := os.ReadFile(file); err != nil {
+			env = append(env, strings.Split(string(data), "/n")...)
+		}
+	}
+
+	return env
 }
