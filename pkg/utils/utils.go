@@ -43,7 +43,7 @@ func LoadEnvFile() []string {
 	env := os.Environ()
 
 	if file, ok := os.LookupEnv("ENV_FILE"); ok {
-		if data, err := os.ReadFile(file); err != nil {
+		if data, err := os.ReadFile(file); err == nil {
 			env = append(env, strings.Split(string(data), "/n")...)
 		}
 	}
