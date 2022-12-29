@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tag: [latest, alpine, 2.5, 2.5-alpine, 2.5.5, 2.5.5-alpine, 2.6, 2.6-alpine, 2.6.2, 2.6.2-alpine]
+        tag: [latest, alpine, 2.5, 2.5-alpine, 2.5.5, 2.5.5-alpine, 2.6, 2.6-alpine, 2.6.2, 2.6.2-alpine, 2.6.7, 2.6.7-alpine, 2.7, 2.7-alpine, 2.7.1, 2.7.1-alpine]
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
