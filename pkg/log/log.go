@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 const (
@@ -29,5 +30,5 @@ func Notice(msg string) {
 }
 
 func log(level string, pid int, msg string) {
-	fmt.Printf("%-10s (%d) : %s\n", fmt.Sprintf("[%s]", level), pid, msg)
+	fmt.Printf("%s %-10s (%d) : %s\n", time.Now().Format(time.RFC3339Nano), fmt.Sprintf("[%s]", level), pid, msg)
 }
