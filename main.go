@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 
 	"github.com/fsnotify/fsnotify"
@@ -53,8 +52,6 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 
-	mx := sync.Mutex{}
-
 	// endless for loop which handles signals, file system events as well as termination of the child process
 	for {
 		select {
@@ -63,8 +60,6 @@ func main() {
 			if !(isWrite(event) || isRemove(event) || isCreate(event)) {
 				continue
 			}
-
-			mx.Lock()
 
 			log.Notice(fmt.Sprintf("fs event for file %s : %v", cfgFile, event.Op))
 
@@ -86,23 +81,21 @@ func main() {
 			if err := tmp.AsyncRun(); err != nil {
 				log.Warning(err.Error())
 				log.Warning("reload failed")
-			} else {
-				log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
-				select {
-				case <-cmd.Terminated:
-					// old haproxy terminated - successfully started a new process replacing the old one
-					log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-					log.Notice("reload successful")
-					cmd = tmp
-				case <-tmp.Terminated:
-					// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
-					log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
-					log.Warning("reload failed")
-				}
+				continue
 			}
 
-			mx.Unlock()
-
+			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
+			select {
+			case <-cmd.Terminated:
+				// old haproxy terminated - successfully started a new process replacing the old one
+				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
+				log.Notice("reload successful")
+				cmd = tmp
+			case <-tmp.Terminated:
+				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
+				log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
+				log.Warning("reload failed")
+			}
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
