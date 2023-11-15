@@ -20,6 +20,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
       - name: Checkout
         uses: actions/checkout@v2
       - name: Modify Dockerfile
