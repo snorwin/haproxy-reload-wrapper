@@ -60,20 +60,31 @@ func main() {
 			if !(isWrite(event) || isRemove(event) || isCreate(event)) {
 				continue
 			}
+
 			log.Notice(fmt.Sprintf("fs event for file %s : %v", cfgFile, event.Op))
+
+			// re-add watch if file was removed - config maps are updated by removing/adding a symlink
+			if isRemove(event) {
+				if err := fswatch.Add(cfgFile); err != nil {
+					log.Alert(fmt.Sprintf("watch file failed : %v", err))
+				} else {
+					log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
+				}
+			}
 
 			// create a new haproxy process which will replace the old one after it was successfully started
 			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
 			tmp.Stdout = os.Stdout
 			tmp.Stderr = os.Stderr
 			tmp.Env = utils.LoadEnvFile()
+
 			if err := tmp.AsyncRun(); err != nil {
 				log.Warning(err.Error())
 				log.Warning("reload failed")
 				continue
 			}
-			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
 
+			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
 			select {
 			case <-cmd.Terminated:
 				// old haproxy terminated - successfully started a new process replacing the old one
@@ -84,16 +95,6 @@ func main() {
 				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
 				log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
 				log.Warning("reload failed")
-			}
-
-			// re-add watch if file was removed - config maps are updated by removing/adding a symlink
-			if isRemove(event) {
-				if err := fswatch.Add(cfgFile); err != nil {
-					log.Alert(fmt.Sprintf("watch file failed : %v", err))
-					continue
-				}
-
-				log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
 			}
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
