@@ -17,8 +17,13 @@ func LookupExecutablePathAbs(executable string) (string, error) {
 	return filepath.Abs(file)
 }
 
-// LookupHAProxyConfigDir lookup the program arguments to find the config file path (default: "/etc/haproxy/haproxy.cfg")
-func LookupHAProxyConfigDir() string {
+// LookupWatchPath return WATCH_PATH if defined
+func LookupWatchPath() string {
+	return os.Getenv("WATCH_PATH")
+}
+
+// LookupHAProxyConfigFile lookup the program arguments to find the config file path (default: "/etc/haproxy/haproxy.cfg")
+func LookupHAProxyConfigFile() string {
 	file := "/etc/haproxy/haproxy.cfg"
 	for i := 1; i < len(os.Args); i++ {
 		if os.Args[i] == "-f" && i+1 < len(os.Args) {
@@ -26,7 +31,7 @@ func LookupHAProxyConfigDir() string {
 		}
 	}
 
-	return filepath.Dir(file)
+	return file
 }
 
 // LookupHAProxySocketPath lookup the value of HAPROXY_SOCKET environment variable (default:"/var/run/haproxy.sock")

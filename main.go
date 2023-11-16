@@ -32,18 +32,22 @@ func main() {
 	}
 	log.Notice(fmt.Sprintf("process %d started", cmd.Process.Pid))
 
+	watchPath := utils.LookupWatchPath()
+	if watchPath == "" {
+		watchPath = utils.LookupHAProxyConfigFile()
+	}
+
 	// create a fsnotify.Watcher for config changes
-	cfgDir := utils.LookupHAProxyConfigDir()
 	fswatch, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Notice(fmt.Sprintf("fsnotify watcher create failed : %v", err))
 		os.Exit(1)
 	}
-	if err := fswatch.Add(cfgDir); err != nil {
+	if err := fswatch.Add(watchPath); err != nil {
 		log.Notice(fmt.Sprintf("watch failed : %v", err))
 		os.Exit(1)
 	}
-	log.Notice(fmt.Sprintf("watch : %s", cfgDir))
+	log.Notice(fmt.Sprintf("watch : %s", watchPath))
 
 	// flag used for termination handling
 	var terminated bool
@@ -61,7 +65,16 @@ func main() {
 				continue
 			}
 
-			log.Notice(fmt.Sprintf("fs event for %s : %v", cfgDir, event.Op))
+			log.Notice(fmt.Sprintf("fs event for %s : %v", watchPath, event.Op))
+
+			// re-add watch if path was removed - config maps are updated by removing/adding a symlink
+			if event.Has(fsnotify.Remove) {
+				if err := fswatch.Add(watchPath); err != nil {
+					log.Alert(fmt.Sprintf("watch failed : %v", err))
+				} else {
+					log.Notice(fmt.Sprintf("watch : %s", watchPath))
+				}
+			}
 
 			// create a new haproxy process which will replace the old one after it was successfully started
 			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
