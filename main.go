@@ -32,18 +32,22 @@ func main() {
 	}
 	log.Notice(fmt.Sprintf("process %d started", cmd.Process.Pid))
 
-	// create a fsnotify.Watcher for config file changes
-	cfgFile := utils.LookupHAProxyConfigFile()
+	watchPath := utils.LookupWatchPath()
+	if watchPath == "" {
+		watchPath = utils.LookupHAProxyConfigFile()
+	}
+
+	// create a fsnotify.Watcher for config changes
 	fswatch, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Notice(fmt.Sprintf("fsnotify watcher create failed : %v", err))
 		os.Exit(1)
 	}
-	if err := fswatch.Add(cfgFile); err != nil {
-		log.Notice(fmt.Sprintf("watch file failed : %v", err))
+	if err := fswatch.Add(watchPath); err != nil {
+		log.Notice(fmt.Sprintf("watch failed : %v", err))
 		os.Exit(1)
 	}
-	log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
+	log.Notice(fmt.Sprintf("watch : %s", watchPath))
 
 	// flag used for termination handling
 	var terminated bool
@@ -56,19 +60,19 @@ func main() {
 	for {
 		select {
 		case event := <-fswatch.Events:
-			// only care about events which may modify the contents of the file
-			if !(isWrite(event) || isRemove(event) || isCreate(event)) {
+			// only care about events which may modify the contents of the directory
+			if !(event.Has(fsnotify.Write) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Create)) {
 				continue
 			}
 
-			log.Notice(fmt.Sprintf("fs event for file %s : %v", cfgFile, event.Op))
+			log.Notice(fmt.Sprintf("fs event for %s : %v", watchPath, event.Op))
 
-			// re-add watch if file was removed - config maps are updated by removing/adding a symlink
-			if isRemove(event) {
-				if err := fswatch.Add(cfgFile); err != nil {
-					log.Alert(fmt.Sprintf("watch file failed : %v", err))
+			// re-add watch if path was removed - config maps are updated by removing/adding a symlink
+			if event.Has(fsnotify.Remove) {
+				if err := fswatch.Add(watchPath); err != nil {
+					log.Alert(fmt.Sprintf("watch failed : %v", err))
 				} else {
-					log.Notice(fmt.Sprintf("watch file : %s", cfgFile))
+					log.Notice(fmt.Sprintf("watch : %s", watchPath))
 				}
 			}
 
@@ -130,16 +134,4 @@ func main() {
 			os.Exit(cmd.ProcessState.ExitCode())
 		}
 	}
-}
-
-func isWrite(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Write == fsnotify.Write
-}
-
-func isCreate(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Create == fsnotify.Create
-}
-
-func isRemove(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Remove == fsnotify.Remove
 }

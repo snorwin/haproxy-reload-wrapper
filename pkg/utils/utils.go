@@ -17,6 +17,11 @@ func LookupExecutablePathAbs(executable string) (string, error) {
 	return filepath.Abs(file)
 }
 
+// LookupWatchPath return WATCH_PATH if defined
+func LookupWatchPath() string {
+	return os.Getenv("WATCH_PATH")
+}
+
 // LookupHAProxyConfigFile lookup the program arguments to find the config file path (default: "/etc/haproxy/haproxy.cfg")
 func LookupHAProxyConfigFile() string {
 	file := "/etc/haproxy/haproxy.cfg"
