@@ -23,5 +23,6 @@ The haproxy-reload-wrapper watches the HAProxy configuration file using an inoti
     stats socket /var/run/haproxy.sock mode 600 level admin expose-fd listeners
   ```
 2. Set the `HAPROXY_SOCKET` environment variable to the path of the socket if it is different from the default path: `/var/run/haproxy.sock`.
-3. Replace the `docker.io/haproxy` image with the `ghcr.io/snorwin/haproxy` image on container platforms or compile the source code and run `./haproxy-reload-wrapper` on a Linux system. As an example, check out the [Helm chart](test/helm) used for the tests.
-4. Modify the configuration file and let the magic happen.✨
+3. Optionally set the `WATCH_PATH` environment variable to watch a directory instead of the haproxy.cfg file only
+4. Replace the `docker.io/haproxy` image with the `ghcr.io/snorwin/haproxy` image on container platforms or compile the source code and run `./haproxy-reload-wrapper` on a Linux system. As an example, check out the [Helm chart](test/helm) used for the tests.
+5. Modify the configuration file and let the magic happen.✨
