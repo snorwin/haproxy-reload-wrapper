@@ -43,11 +43,16 @@ func main() {
 		log.Notice(fmt.Sprintf("fsnotify watcher create failed : %v", err))
 		os.Exit(1)
 	}
-	if err := fswatch.Add(watchPath); err != nil {
-		log.Notice(fmt.Sprintf("watch failed : %v", err))
-		os.Exit(1)
+
+	if utils.DisableReload() {
+		log.Notice("reload disabled, no watches added")
+	} else {
+		if err := fswatch.Add(watchPath); err != nil {
+			log.Notice(fmt.Sprintf("watch failed : %v", err))
+			os.Exit(1)
+		}
+		log.Notice(fmt.Sprintf("watch : %s", watchPath))
 	}
-	log.Notice(fmt.Sprintf("watch : %s", watchPath))
 
 	// flag used for termination handling
 	var terminated bool
