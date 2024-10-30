@@ -55,3 +55,10 @@ func LoadEnvFile() []string {
 
 	return env
 }
+
+func DisableReload() bool {
+	if str, ok := os.LookupEnv("DISABLE_RELOAD"); ok {
+		return strings.EqualFold(str, "true")
+	}
+	return false
+}
