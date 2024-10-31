@@ -13,7 +13,7 @@ jobs:
         tag: [latest, alpine, 2.9, 2.9-alpine, 2.9.11, 2.9.11-alpine, 3.0-alpine, 3.0.5, 3.0.5-alpine]
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Login to ghcr.io
