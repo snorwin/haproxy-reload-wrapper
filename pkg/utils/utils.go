@@ -22,6 +22,15 @@ func LookupWatchPath() string {
 	return os.Getenv("WATCH_PATH")
 }
 
+// LookupWatchPaths returns a slice of paths to watch
+func LookupWatchPaths() []string {
+    paths := os.Getenv("WATCH_PATHS")
+    if paths == "" {
+        return []string{LookupHAProxyConfigFile()}
+    }
+    return strings.Split(paths, ",")
+}
+
 // LookupHAProxyConfigFile lookup the program arguments to find the config file path (default: "/etc/haproxy/haproxy.cfg")
 func LookupHAProxyConfigFile() string {
 	file := "/etc/haproxy/haproxy.cfg"
