@@ -16,17 +16,17 @@ func Command(name string, arg ...string) *Cmd {
 }
 
 func (a *Cmd) AsyncRun() error {
-	if err := a.Cmd.Start(); err != nil {
+	if err := a.Start(); err != nil {
 		a.Error = err
 		return a.Error
 	}
-	if a.Cmd.Process == nil || a.Cmd.Process.Pid < 1 {
+	if a.Process == nil || a.Process.Pid < 1 {
 		a.Error = errors.New("unable to create process")
 		return a.Error
 	}
 
 	go func() {
-		a.Error = a.Cmd.Wait()
+		a.Error = a.Wait()
 		a.Terminated <- true
 	}()
 
@@ -34,12 +34,12 @@ func (a *Cmd) AsyncRun() error {
 }
 
 func (a *Cmd) Status() string {
-	if a.Cmd.Process == nil {
+	if a.Process == nil {
 		return "not started"
 	}
 
-	if a.Cmd.ProcessState != nil {
-		return a.Cmd.ProcessState.String()
+	if a.ProcessState != nil {
+		return a.ProcessState.String()
 	}
 
 	if a.Error != nil {

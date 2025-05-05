@@ -66,7 +66,7 @@ func main() {
 		select {
 		case event := <-fswatch.Events:
 			// only care about events which may modify the contents of the directory
-			if !(event.Has(fsnotify.Write) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Create)) {
+			if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Remove) && !event.Has(fsnotify.Create) {
 				continue
 			}
 
