@@ -24,7 +24,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           logout: false
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Modify Dockerfile
         run: |
           sed -i -e "s|%VERSION%|latest|g" Dockerfile
