@@ -94,7 +94,7 @@ func main() {
 			}
 
 			cmd = tmp
-			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
+			log.Notice(fmt.Sprintf("started process with pid %d and status %s", tmp.Process.Pid, tmp.Status()))
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
