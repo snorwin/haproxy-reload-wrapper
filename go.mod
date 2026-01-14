@@ -1,6 +1,6 @@
 module github.com/snorwin/haproxy-reload-wrapper
 
-go 1.24.1
+go 1.24.10
 
 require github.com/fsnotify/fsnotify v1.9.0
 

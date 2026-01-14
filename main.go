@@ -81,7 +81,7 @@ func main() {
 				}
 			}
 
-			// create a new haproxy process which will replace the old one after it was successfully started
+			// create a new haproxy process which will take over listeners from the existing one one after it was successfully started
 			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
 			tmp.Stdout = os.Stdout
 			tmp.Stderr = os.Stderr
@@ -93,18 +93,8 @@ func main() {
 				continue
 			}
 
+			cmd = tmp
 			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
-			select {
-			case <-cmd.Terminated:
-				// old haproxy terminated - successfully started a new process replacing the old one
-				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-				log.Notice("reload successful")
-				cmd = tmp
-			case <-tmp.Terminated:
-				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
-				log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
-				log.Warning("reload failed")
-			}
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
