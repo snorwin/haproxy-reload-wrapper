@@ -92,11 +92,11 @@ func main() {
 				log.Warning("reload failed")
 				continue
 			}
-			go func() {
+			go func(cmd exec.Cmd) {
 				 <-cmd.Terminated
 				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
 				log.Notice("reload successful")
-			}()
+			}(cmd)
 
 			cmd = tmp
 			log.Notice(fmt.Sprintf("started process with pid %d and status %s", tmp.Process.Pid, tmp.Status()))
