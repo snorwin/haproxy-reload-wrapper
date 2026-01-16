@@ -106,7 +106,7 @@ func main() {
 	}
 }
 
-func runInstance() error {
+func runInstance() {
 	args := os.Args[1:]
 	if len(cmds) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids(cmds)}...)
@@ -118,8 +118,7 @@ func runInstance() error {
 
 	if err := cmd.AsyncRun(); err != nil {
 		log.Warning(err.Error())
-		log.Warning("reload failed")
-		return err
+		log.Warning("reload failed: " + err.Error())
 	}
 	go func(cmd *exec.Cmd) {
 		<-cmd.Terminated
@@ -137,7 +136,6 @@ func runInstance() error {
 
 	log.Notice(fmt.Sprintf("started process with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
 	cmds[cmd.Process.Pid] = cmd
-	return nil
 }
 
 func pids(m map[int]*exec.Cmd) string {
