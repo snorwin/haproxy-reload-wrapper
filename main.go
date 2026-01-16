@@ -13,24 +13,24 @@ import (
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
 )
 
+var (
+	executable string
+	cmds       map[int]*exec.Cmd
+)
+
 func main() {
 	// fetch the absolut path of the haproxy executable
-	executable, err := utils.LookupExecutablePathAbs("haproxy")
+	var err error
+	executable, err = utils.LookupExecutablePathAbs("haproxy")
 	if err != nil {
 		log.Emergency(err.Error())
 		os.Exit(1)
 	}
 
+	cmds = make(map[int]*exec.Cmd)
+
 	// execute haproxy with the flags provided as a child process asynchronously
-	cmd := exec.Command(executable, os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = utils.LoadEnvFile()
-	if err := cmd.AsyncRun(); err != nil {
-		log.Emergency(err.Error())
-		os.Exit(1)
-	}
-	log.Notice(fmt.Sprintf("process %d started", cmd.Process.Pid))
+	runInstance()
 
 	watchPath := utils.LookupWatchPath()
 	if watchPath == "" {
@@ -53,9 +53,6 @@ func main() {
 		}
 		log.Notice(fmt.Sprintf("watch : %s", watchPath))
 	}
-
-	// flag used for termination handling
-	var terminated bool
 
 	// initialize a signal handler for SIGINT, SIGTERM and SIGUSR1 (for OpenShift)
 	sigs := make(chan os.Signal, 1)
@@ -81,25 +78,10 @@ func main() {
 				}
 			}
 
-			// create a new haproxy process which will take over listeners from the existing one one after it was successfully started
-			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
-			tmp.Stdout = os.Stdout
-			tmp.Stderr = os.Stderr
-			tmp.Env = utils.LoadEnvFile()
+			// create a new haproxy process which will take over listeners
+			// from the existing one one after it was successfully started
+			runInstance()
 
-			if err := tmp.AsyncRun(); err != nil {
-				log.Warning(err.Error())
-				log.Warning("reload failed")
-				continue
-			}
-			go func(cmd *exec.Cmd) {
-				 <-cmd.Terminated
-				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-				log.Notice("reload successful")
-			}(cmd)
-
-			cmd = tmp
-			log.Notice(fmt.Sprintf("started process with pid %d and status %s", tmp.Process.Pid, tmp.Status()))
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
@@ -107,31 +89,66 @@ func main() {
 			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
 			log.Notice(fmt.Sprintf("received singal %d", sig))
 
-			if cmd.Process == nil {
+			if len(cmds) == 0 {
 				// received termination suddenly before child process was even started
 				os.Exit(0)
 			}
 
-			// set termination flag before propagating the signal in order to prevent race conditions
-			terminated = true
-
-			// propagate signal to child process
-			if err := cmd.Process.Signal(sig); err != nil {
-				log.Warning(fmt.Sprintf("propagating signal %d to process %d failed", sig, cmd.Process.Pid))
-			}
-		case <-cmd.Terminated:
-			// check for unexpected termination
-			if !terminated {
-				log.Emergency(fmt.Sprintf("process %d teminated unexpectedly : %s", cmd.Process.Pid, cmd.Status()))
-				if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
-					os.Exit(cmd.ProcessState.ExitCode())
-				} else {
-					os.Exit(1)
+			// propagate signal to child processes
+			for i := range cmds {
+				if cmds[i].Process != nil {
+					if err := cmds[i].Process.Signal(sig); err != nil {
+						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed", sig, cmds[i].Process.Pid))
+					}
 				}
 			}
-
-			log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-			os.Exit(cmd.ProcessState.ExitCode())
 		}
 	}
+}
+
+func runInstance() error {
+	args := os.Args[1:]
+	if len(cmds) > 0 {
+		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids(cmds)}...)
+	}
+	cmd := exec.Command(executable, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = utils.LoadEnvFile()
+
+	if err := cmd.AsyncRun(); err != nil {
+		log.Warning(err.Error())
+		log.Warning("reload failed")
+		return err
+	}
+	go func(cmd *exec.Cmd) {
+		<-cmd.Terminated
+		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
+		delete(cmds, cmd.Process.Pid)
+
+		if len(cmds) == 0 {
+			if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
+				os.Exit(cmd.ProcessState.ExitCode())
+			} else {
+				os.Exit(0)
+			}
+		}
+	}(cmd)
+
+	log.Notice(fmt.Sprintf("started process with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
+	cmds[cmd.Process.Pid] = cmd
+	return nil
+}
+
+func pids(m map[int]*exec.Cmd) string {
+	var str string
+	if len(m) == 0 {
+		return str
+	}
+
+	for k := range m {
+		str = strconv.Itoa(k) + " " + str
+	}
+
+	return str
 }
