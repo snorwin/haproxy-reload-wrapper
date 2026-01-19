@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/fsnotify/fsnotify"
@@ -15,7 +16,9 @@ import (
 
 var (
 	executable string
-	cmds       map[int]*exec.Cmd
+	cmds       []*exec.Cmd
+	l          sync.Mutex
+	terminated bool
 )
 
 func main() {
@@ -26,8 +29,6 @@ func main() {
 		log.Emergency(err.Error())
 		os.Exit(1)
 	}
-
-	cmds = make(map[int]*exec.Cmd)
 
 	// execute haproxy with the flags provided as a child process asynchronously
 	runInstance()
@@ -94,6 +95,9 @@ func main() {
 				os.Exit(0)
 			}
 
+			// set termination flag before propagating the signal in order to prevent race conditions
+			terminated = true
+
 			// propagate signal to child processes
 			for i := range cmds {
 				if cmds[i].Process != nil {
@@ -107,23 +111,46 @@ func main() {
 }
 
 func runInstance() {
+	argsValidate := append(os.Args[1:], "-c")
+	cmdValidate := exec.Command(executable, argsValidate...)
+	cmdValidate.Stdout = os.Stdout
+	cmdValidate.Stderr = os.Stderr
+	cmdValidate.Env = utils.LoadEnvFile()
+
+	if err := cmdValidate.Run(); err != nil {
+		log.Warning("validate failed: " + err.Error())
+		return
+	}
+
 	args := os.Args[1:]
 	if len(cmds) > 0 {
-		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids(cmds)}...)
+		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
 	}
+
 	cmd := exec.Command(executable, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = utils.LoadEnvFile()
 
 	if err := cmd.AsyncRun(); err != nil {
-		log.Warning(err.Error())
-		log.Warning("reload failed: " + err.Error())
+		log.Warning("process starting failed: " + err.Error())
 	}
 	go func(cmd *exec.Cmd) {
 		<-cmd.Terminated
 		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-		delete(cmds, cmd.Process.Pid)
+
+		if terminated && cmd.ProcessState.ExitCode() != 0 {
+			os.Exit(cmd.ProcessState.ExitCode())
+		}
+
+		l.Lock()
+		defer l.Unlock()
+		for i := range cmds {
+			if cmds[i].Process.Pid == cmd.Process.Pid {
+				cmds = append(cmds[:i], cmds[i+1:]...)
+				break
+			}
+		}
 
 		if len(cmds) == 0 {
 			if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
@@ -134,18 +161,21 @@ func runInstance() {
 		}
 	}(cmd)
 
-	log.Notice(fmt.Sprintf("started process with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
-	cmds[cmd.Process.Pid] = cmd
+	log.Notice(fmt.Sprintf("process started with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
+
+	l.Lock()
+	defer l.Unlock()
+	cmds = append(cmds, cmd)
 }
 
-func pids(m map[int]*exec.Cmd) string {
+func pids() string {
 	var str string
-	if len(m) == 0 {
+	if len(cmds) == 0 {
 		return str
 	}
 
-	for k := range m {
-		str = strconv.Itoa(k) + " " + str
+	for i := range cmds {
+		str = strconv.Itoa(cmds[i].Process.Pid) + " " + str
 	}
 
 	return str
