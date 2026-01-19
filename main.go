@@ -119,6 +119,9 @@ func runInstance() {
 
 	if err := cmdValidate.Run(); err != nil {
 		log.Warning("validate failed: " + err.Error())
+		if len(cmds) == 0 {
+			os.Exit(1)
+		}
 		return
 	}
 
