@@ -135,7 +135,7 @@ func runInstance() {
 	cmd.Stderr = os.Stderr
 	cmd.Env = utils.LoadEnvFile()
 
-	if err := cmd.AsyncRun(); err != nil {
+	if err := cmd.Run(); err != nil {
 		log.Warning("process starting failed: " + err.Error())
 	}
 	go func(cmd *exec.Cmd) {
