@@ -30,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// execute haproxy with the flags provided as a child process asynchronously
+	// execute haproxy with the flags provided as a child process
 	runInstance()
 
 	watchPath := utils.LookupWatchPath()
@@ -80,7 +80,7 @@ func main() {
 			}
 
 			// create a new haproxy process which will take over listeners
-			// from the existing one one after it was successfully started
+			// from the previous ones after it was successfully started
 			runInstance()
 
 		case err := <-fswatch.Errors:
@@ -111,6 +111,8 @@ func main() {
 }
 
 func runInstance() {
+
+	// validate the config by using the "-c" flag
 	argsValidate := append(os.Args[1:], "-c")
 	cmdValidate := exec.Command(executable, argsValidate...)
 	cmdValidate.Stdout = os.Stdout
@@ -119,12 +121,14 @@ func runInstance() {
 
 	if err := cmdValidate.Run(); err != nil {
 		log.Warning("validate failed: " + err.Error())
+		// exit if the config is invalid and no other process is running
 		if len(cmds) == 0 {
 			os.Exit(1)
 		}
 		return
 	}
 
+	// launch the actual haproxy including the previous pids to terminate
 	args := os.Args[1:]
 	if len(cmds) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
@@ -142,10 +146,12 @@ func runInstance() {
 		<-cmd.Terminated
 		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
 
+		// exit if termination signal was received and the last process terminated abnormally
 		if terminated && cmd.ProcessState.ExitCode() != 0 {
 			os.Exit(cmd.ProcessState.ExitCode())
 		}
 
+		// remove the process from tracking
 		l.Lock()
 		defer l.Unlock()
 		for i := range cmds {
@@ -155,6 +161,7 @@ func runInstance() {
 			}
 		}
 
+		// exit if there are no more processes running
 		if len(cmds) == 0 {
 			if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
 				os.Exit(cmd.ProcessState.ExitCode())
