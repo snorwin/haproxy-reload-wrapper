@@ -66,7 +66,10 @@ jobs:
           sleep 90
       - name: Verify that configuration was reloaded hitless
         run: |
-          if [ $( kubectl logs haproxy | grep "reload successful" | wc -l) -ne 1 ]; then
+          if [ $( kubectl logs haproxy | grep "process started with pid" | wc -l) -ne 2 ]; then
+            exit 1
+          fi
+          if [ "$(kubectl logs haproxy | grep -E -c 'process [0-9]+ terminated')" -ne 1 ]; then
             exit 1
           fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
@@ -78,7 +81,7 @@ jobs:
           sleep 90
       - name: Verify that configuration was NOT reloaded
         run: |
-          if [ $( kubectl logs haproxy | grep "reload failed" | wc -l) -ne 1 ]; then
+          if [ $( kubectl logs haproxy | grep "validate failed" | wc -l) -ne 1 ]; then
             exit 1
           fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
@@ -90,7 +93,10 @@ jobs:
           sleep 90
       - name: Verify that configuration was reloaded hitless
         run: |
-          if [ $( kubectl logs haproxy | grep "reload successful" | wc -l) -ne 2 ]; then
+          if [ $( kubectl logs haproxy | grep "process started with pid" | wc -l) -ne 3 ]; then
+            exit 1
+          fi
+          if [ "$(kubectl logs haproxy | grep -E -c 'process [0-9]+ terminated')" -ne 2 ]; then
             exit 1
           fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then

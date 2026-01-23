@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,24 +14,24 @@ import (
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/utils"
 )
 
+var (
+	executable string
+	cmds       []*exec.Cmd
+	l          sync.Mutex
+	terminated bool
+)
+
 func main() {
 	// fetch the absolut path of the haproxy executable
-	executable, err := utils.LookupExecutablePathAbs("haproxy")
+	var err error
+	executable, err = utils.LookupExecutablePathAbs("haproxy")
 	if err != nil {
 		log.Emergency(err.Error())
 		os.Exit(1)
 	}
 
-	// execute haproxy with the flags provided as a child process asynchronously
-	cmd := exec.Command(executable, os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = utils.LoadEnvFile()
-	if err := cmd.AsyncRun(); err != nil {
-		log.Emergency(err.Error())
-		os.Exit(1)
-	}
-	log.Notice(fmt.Sprintf("process %d started", cmd.Process.Pid))
+	// execute haproxy with the flags provided as a child process
+	runInstance()
 
 	watchPath := utils.LookupWatchPath()
 	if watchPath == "" {
@@ -53,9 +54,6 @@ func main() {
 		}
 		log.Notice(fmt.Sprintf("watch : %s", watchPath))
 	}
-
-	// flag used for termination handling
-	var terminated bool
 
 	// initialize a signal handler for SIGINT, SIGTERM and SIGUSR1 (for OpenShift)
 	sigs := make(chan os.Signal, 1)
@@ -81,30 +79,10 @@ func main() {
 				}
 			}
 
-			// create a new haproxy process which will replace the old one after it was successfully started
-			tmp := exec.Command(executable, append([]string{"-x", utils.LookupHAProxySocketPath(), "-sf", strconv.Itoa(cmd.Process.Pid)}, os.Args[1:]...)...)
-			tmp.Stdout = os.Stdout
-			tmp.Stderr = os.Stderr
-			tmp.Env = utils.LoadEnvFile()
+			// create a new haproxy process which will take over listeners
+			// from the previous ones after it was successfully started
+			runInstance()
 
-			if err := tmp.AsyncRun(); err != nil {
-				log.Warning(err.Error())
-				log.Warning("reload failed")
-				continue
-			}
-
-			log.Notice(fmt.Sprintf("process %d started", tmp.Process.Pid))
-			select {
-			case <-cmd.Terminated:
-				// old haproxy terminated - successfully started a new process replacing the old one
-				log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-				log.Notice("reload successful")
-				cmd = tmp
-			case <-tmp.Terminated:
-				// new haproxy terminated without terminating the old process - this can happen if the modified configuration file was invalid
-				log.Warning(fmt.Sprintf("process %d terminated unexpectedly : %s", tmp.Process.Pid, tmp.Status()))
-				log.Warning("reload failed")
-			}
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
@@ -112,7 +90,7 @@ func main() {
 			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
 			log.Notice(fmt.Sprintf("received singal %d", sig))
 
-			if cmd.Process == nil {
+			if len(cmds) == 0 {
 				// received termination suddenly before child process was even started
 				os.Exit(0)
 			}
@@ -120,23 +98,95 @@ func main() {
 			// set termination flag before propagating the signal in order to prevent race conditions
 			terminated = true
 
-			// propagate signal to child process
-			if err := cmd.Process.Signal(sig); err != nil {
-				log.Warning(fmt.Sprintf("propagating signal %d to process %d failed", sig, cmd.Process.Pid))
-			}
-		case <-cmd.Terminated:
-			// check for unexpected termination
-			if !terminated {
-				log.Emergency(fmt.Sprintf("process %d teminated unexpectedly : %s", cmd.Process.Pid, cmd.Status()))
-				if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
-					os.Exit(cmd.ProcessState.ExitCode())
-				} else {
-					os.Exit(1)
+			// propagate signal to child processes
+			for i := range cmds {
+				if cmds[i].Process != nil {
+					if err := cmds[i].Process.Signal(sig); err != nil {
+						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed", sig, cmds[i].Process.Pid))
+					}
 				}
 			}
-
-			log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
-			os.Exit(cmd.ProcessState.ExitCode())
 		}
 	}
+}
+
+func runInstance() {
+
+	// validate the config by using the "-c" flag
+	argsValidate := append(os.Args[1:], "-c")
+	cmdValidate := exec.Command(executable, argsValidate...)
+	cmdValidate.Stdout = os.Stdout
+	cmdValidate.Stderr = os.Stderr
+	cmdValidate.Env = utils.LoadEnvFile()
+
+	if err := cmdValidate.Run(); err != nil {
+		log.Warning("validate failed: " + err.Error())
+		// exit if the config is invalid and no other process is running
+		if len(cmds) == 0 {
+			os.Exit(1)
+		}
+		return
+	}
+
+	// launch the actual haproxy including the previous pids to terminate
+	args := os.Args[1:]
+	if len(cmds) > 0 {
+		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
+	}
+
+	cmd := exec.Command(executable, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = utils.LoadEnvFile()
+
+	if err := cmd.AsyncRun(); err != nil {
+		log.Warning("process starting failed: " + err.Error())
+	}
+	go func(cmd *exec.Cmd) {
+		<-cmd.Terminated
+		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
+
+		// exit if termination signal was received and the last process terminated abnormally
+		if terminated && cmd.ProcessState.ExitCode() != 0 {
+			os.Exit(cmd.ProcessState.ExitCode())
+		}
+
+		// remove the process from tracking
+		l.Lock()
+		defer l.Unlock()
+		for i := range cmds {
+			if cmds[i].Process.Pid == cmd.Process.Pid {
+				cmds = append(cmds[:i], cmds[i+1:]...)
+				break
+			}
+		}
+
+		// exit if there are no more processes running
+		if len(cmds) == 0 {
+			if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
+				os.Exit(cmd.ProcessState.ExitCode())
+			} else {
+				os.Exit(0)
+			}
+		}
+	}(cmd)
+
+	log.Notice(fmt.Sprintf("process started with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
+
+	l.Lock()
+	defer l.Unlock()
+	cmds = append(cmds, cmd)
+}
+
+func pids() string {
+	var str string
+	if len(cmds) == 0 {
+		return str
+	}
+
+	for i := range cmds {
+		str = strconv.Itoa(cmds[i].Process.Pid) + " " + str
+	}
+
+	return str
 }
