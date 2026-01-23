@@ -69,6 +69,9 @@ jobs:
           if [ $( kubectl logs haproxy | grep "process started with pid" | wc -l) -ne 2 ]; then
             exit 1
           fi
+          if [ "$(kubectl logs haproxy | grep -E -c 'process [0-9]+ terminated')" -ne 1 ]; then
+            exit 1
+          fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
             exit 1
           fi
@@ -91,6 +94,9 @@ jobs:
       - name: Verify that configuration was reloaded hitless
         run: |
           if [ $( kubectl logs haproxy | grep "process started with pid" | wc -l) -ne 3 ]; then
+            exit 1
+          fi
+          if [ "$(kubectl logs haproxy | grep -E -c 'process [0-9]+ terminated')" -ne 2 ]; then
             exit 1
           fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
