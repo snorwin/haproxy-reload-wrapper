@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -179,14 +180,13 @@ func runInstance() {
 }
 
 func pids() string {
-	var str string
 	if len(cmds) == 0 {
-		return str
+		return ""
 	}
 
-	for i := range cmds {
-		str = strconv.Itoa(cmds[i].Process.Pid) + " " + str
+	out := make([]string, 0, len(cmds))
+	for _, c := range cmds {
+		out = append(out, strconv.Itoa(c.Process.Pid))
 	}
-
-	return str
+	return strings.Join(out, " ")
 }
