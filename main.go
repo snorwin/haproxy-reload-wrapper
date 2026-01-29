@@ -18,7 +18,7 @@ import (
 var (
 	executable string
 	cmds       []*exec.Cmd
-	l          sync.Mutex
+	l          sync.RWMutex
 	terminated bool
 )
 
@@ -100,6 +100,7 @@ func main() {
 			terminated = true
 
 			// propagate signal to child processes
+			l.RLock()
 			for i := range cmds {
 				if cmds[i].Process != nil {
 					if err := cmds[i].Process.Signal(sig); err != nil {
@@ -107,6 +108,7 @@ func main() {
 					}
 				}
 			}
+			l.RUnlock()
 		}
 	}
 }
@@ -131,9 +133,11 @@ func runInstance() {
 
 	// launch the actual haproxy including the previous pids to terminate
 	args := os.Args[1:]
+	l.RLock()
 	if len(cmds) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
 	}
+	l.RUnlock()
 
 	cmd := exec.Command(executable, args...)
 	cmd.Stdout = os.Stdout
