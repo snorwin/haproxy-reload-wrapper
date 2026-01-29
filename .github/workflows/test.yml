@@ -67,18 +67,12 @@ jobs:
       - name: Verify that configuration was reloaded hitless
         run: |
           if [ $( kubectl logs haproxy | grep "process started with pid" | wc -l) -ne 2 ]; then
-            echo "haproxy start fail"
-            kubectl logs haproxy
             exit 1
           fi
           if [ "$(kubectl logs haproxy | grep -E -c 'process [0-9]+ terminated')" -ne 1 ]; then
-            echo "haproxy terminate fail"
-            kubectl logs haproxy
             exit 1
           fi
           if [ $(kubectl logs http-client-01 | grep error | wc -l) -gt 0 ]; then
-            echo "client fail"
-            kubectl logs http-client-01
             exit 1
           fi
       - name: Change HAProxy configuration (invalid)
