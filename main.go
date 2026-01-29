@@ -137,7 +137,7 @@ func runInstance() {
 	if len(cmds) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
 	}
-	defer l.RUnlock()
+	l.RUnlock()
 
 	cmd := exec.Command(executable, args...)
 	cmd.Stdout = os.Stdout
