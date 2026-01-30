@@ -5,10 +5,8 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
-	"unicode"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/exec"
@@ -136,7 +134,8 @@ func runInstance() {
 	args := os.Args[1:]
 	l.RLock()
 	if len(cmds) > 0 {
-		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf", pids()}...)
+		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf"}...)
+		args = append(args, pids()...)
 	}
 	l.RUnlock()
 
@@ -184,27 +183,11 @@ func runInstance() {
 	cmds = append(cmds, cmd)
 }
 
-// pids returns the PID list as a space-separated string
-func pids() string {
-	if len(cmds) == 0 {
-		return ""
-	}
-
+// pids returns the PID list
+func pids() []string {
 	out := make([]string, 0, len(cmds))
 	for _, c := range cmds {
-		out = append(out, stripCtrlChars(strconv.Itoa(c.Process.Pid)))
+		out = append(out, strconv.Itoa(c.Process.Pid))
 	}
-	return strings.Join(out, " ")
-}
-
-// stripCtrlChars returns a sanitized string
-// the PID read from the HAProxy socket includes a trailing control character,
-// usually the multi‑byte separator that HAProxy puts at the end of the Runtime API response
-func stripCtrlChars(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, s)
+	return out
 }
