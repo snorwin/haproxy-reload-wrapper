@@ -184,7 +184,7 @@ func runInstance() {
 	cmds = append(cmds, cmd)
 }
 
-// pids returns the pid list whitespace space separated
+// pids returns the PID list as a space-separated string
 func pids() string {
 	if len(cmds) == 0 {
 		return ""
