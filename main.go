@@ -57,7 +57,7 @@ func main() {
 
 	// initialize a signal handler for SIGINT, SIGTERM and SIGUSR1 (for OpenShift)
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGUSR1)
 
 	// endless for loop which handles signals, file system events as well as termination of the child process
 	for {
