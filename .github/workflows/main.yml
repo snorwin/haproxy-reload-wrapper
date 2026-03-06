@@ -30,7 +30,7 @@ jobs:
           sed -i -e "s|%VERSION%|latest|g" Dockerfile
       - name: Build and push
         id: docker_build_master
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
