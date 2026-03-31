@@ -99,7 +99,6 @@ func main() {
 			terminated = true
 
 			// propagate signal to child processes
-			l.RLock()
 			for i := range cmds {
 				if cmds[i].Process != nil {
 					if err := cmds[i].Process.Signal(sig); err != nil {
@@ -107,12 +106,13 @@ func main() {
 					}
 				}
 			}
-			l.RUnlock()
 		}
 	}
 }
 
 func runInstance() {
+
+	log.Notice("starting validation...")
 
 	// validate the config by using the "-c" flag
 	argsValidate := append(os.Args[1:], "-c")
@@ -132,12 +132,12 @@ func runInstance() {
 
 	// launch the actual haproxy including the previous pids to terminate
 	args := os.Args[1:]
-	l.RLock()
 	if len(cmds) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf"}...)
 		args = append(args, pids()...)
 	}
-	l.RUnlock()
+
+	log.Notice("validate successful, starting process...")
 
 	cmd := exec.Command(executable, args...)
 	cmd.Stdout = os.Stdout
@@ -149,7 +149,7 @@ func runInstance() {
 	}
 	go func(cmd *exec.Cmd) {
 		<-cmd.Terminated
-		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
+		log.Notice(fmt.Sprintf("process %d terminated: %s", cmd.Process.Pid, cmd.Status()))
 
 		// exit if termination signal was received and the last process terminated abnormally
 		if terminated && cmd.ProcessState.ExitCode() != 0 {
@@ -158,13 +158,13 @@ func runInstance() {
 
 		// remove the process from tracking
 		l.Lock()
-		defer l.Unlock()
 		for i := range cmds {
 			if cmds[i].Process.Pid == cmd.Process.Pid {
 				cmds = append(cmds[:i], cmds[i+1:]...)
 				break
 			}
 		}
+		l.Unlock()
 
 		// exit if there are no more processes running
 		if len(cmds) == 0 {
@@ -179,8 +179,8 @@ func runInstance() {
 	log.Notice(fmt.Sprintf("process started with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
 
 	l.Lock()
-	defer l.Unlock()
 	cmds = append(cmds, cmd)
+	l.Unlock()
 }
 
 // pids returns the PID list
