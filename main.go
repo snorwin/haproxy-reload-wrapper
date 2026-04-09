@@ -46,7 +46,7 @@ func main() {
 	}
 
 	if utils.DisableReload() {
-		log.Notice("reload disabled, no watches added")
+		log.Notice("reload disabled : no watches added")
 	} else {
 		if err := fswatch.Add(watchPath); err != nil {
 			log.Notice(fmt.Sprintf("watch failed : %v", err))
@@ -88,7 +88,7 @@ func main() {
 			log.Alert(err.Error())
 		case sig := <-sigs:
 			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
-			log.Notice(fmt.Sprintf("received singal %d", sig))
+			log.Notice(fmt.Sprintf("received singal : %d", sig))
 
 			if len(cmds) == 0 {
 				// received termination suddenly before child process was even started
@@ -102,7 +102,7 @@ func main() {
 			for i := range cmds {
 				if cmds[i].Process != nil {
 					if err := cmds[i].Process.Signal(sig); err != nil {
-						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed", sig, cmds[i].Process.Pid))
+						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed : %s", sig, cmds[i].Process.Pid, err.Error()))
 					}
 				}
 			}
@@ -112,7 +112,7 @@ func main() {
 
 func runInstance() {
 
-	log.Notice("starting validation...")
+	log.Notice("starting validation")
 
 	// validate the config by using the "-c" flag
 	argsValidate := append(os.Args[1:], "-c")
@@ -122,7 +122,7 @@ func runInstance() {
 	cmdValidate.Env = utils.LoadEnvFile()
 
 	if err := cmdValidate.Run(); err != nil {
-		log.Warning("validate failed: " + err.Error())
+		log.Warning("validate failed : " + err.Error())
 		// exit if the config is invalid and no other process is running
 		if len(cmds) == 0 {
 			os.Exit(1)
@@ -137,7 +137,7 @@ func runInstance() {
 		args = append(args, pids()...)
 	}
 
-	log.Notice("validate successful, starting process...")
+	log.Notice("validate successful : starting process...")
 
 	cmd := exec.Command(executable, args...)
 	cmd.Stdout = os.Stdout
@@ -145,11 +145,11 @@ func runInstance() {
 	cmd.Env = utils.LoadEnvFile()
 
 	if err := cmd.AsyncRun(); err != nil {
-		log.Warning("process starting failed: " + err.Error())
+		log.Warning("process starting failed : " + err.Error())
 	}
 	go func(cmd *exec.Cmd) {
 		<-cmd.Terminated
-		log.Notice(fmt.Sprintf("process %d terminated: %s", cmd.Process.Pid, cmd.Status()))
+		log.Notice(fmt.Sprintf("process %d terminated : %s", cmd.Process.Pid, cmd.Status()))
 
 		// exit if termination signal was received and the last process terminated abnormally
 		if terminated && cmd.ProcessState.ExitCode() != 0 {
@@ -176,7 +176,7 @@ func runInstance() {
 		}
 	}(cmd)
 
-	log.Notice(fmt.Sprintf("process started with pid %d and status %s", cmd.Process.Pid, cmd.Status()))
+	log.Notice(fmt.Sprintf("process started : pid %d status %s", cmd.Process.Pid, cmd.Status()))
 
 	l.Lock()
 	cmds = append(cmds, cmd)
