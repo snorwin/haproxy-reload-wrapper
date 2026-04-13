@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/snorwin/haproxy-reload-wrapper/pkg/exec"
@@ -15,11 +16,17 @@ import (
 )
 
 var (
-	executable string
-	cmds       []*exec.Cmd
-	l          sync.RWMutex
-	terminated bool
+	executable   string
+	processes    []Process
+	l            sync.RWMutex
+	terminated   bool
+	shutdownWait *time.Duration
 )
+
+type Process struct {
+	cmd           *exec.Cmd
+	terminateTime *time.Time
+}
 
 func main() {
 	// fetch the absolut path of the haproxy executable
@@ -29,6 +36,9 @@ func main() {
 		log.Emergency(err.Error())
 		os.Exit(1)
 	}
+
+	shutdownWait = utils.ShutdownWait()
+	log.Notice(fmt.Sprintf("shutdown wait duration : %s", shutdownWait))
 
 	// execute haproxy with the flags provided as a child process
 	runInstance()
@@ -83,6 +93,9 @@ func main() {
 			// from the previous ones after it was successfully started
 			runInstance()
 
+			// remove old haproxy processes if SHUTDOWN_WAIT has been specified
+			cleanupInstances()
+
 		case err := <-fswatch.Errors:
 			// handle errors of fsnotify.Watcher
 			log.Alert(err.Error())
@@ -90,7 +103,7 @@ func main() {
 			// handle SIGINT, SIGTERM, SIGUSR1 and propagate it to child process
 			log.Notice(fmt.Sprintf("received singal : %d", sig))
 
-			if len(cmds) == 0 {
+			if len(processes) == 0 {
 				// received termination suddenly before child process was even started
 				os.Exit(0)
 			}
@@ -99,10 +112,10 @@ func main() {
 			terminated = true
 
 			// propagate signal to child processes
-			for i := range cmds {
-				if cmds[i].Process != nil {
-					if err := cmds[i].Process.Signal(sig); err != nil {
-						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed : %s", sig, cmds[i].Process.Pid, err.Error()))
+			for i := range processes {
+				if processes[i].cmd.Process != nil {
+					if err := processes[i].cmd.Process.Signal(sig); err != nil {
+						log.Warning(fmt.Sprintf("propagating signal %d to process %d failed : %s", sig, processes[i].cmd.Process.Pid, err.Error()))
 					}
 				}
 			}
@@ -124,7 +137,7 @@ func runInstance() {
 	if err := cmdValidate.Run(); err != nil {
 		log.Warning("validate failed : " + err.Error())
 		// exit if the config is invalid and no other process is running
-		if len(cmds) == 0 {
+		if len(processes) == 0 {
 			os.Exit(1)
 		}
 		return
@@ -132,7 +145,7 @@ func runInstance() {
 
 	// launch the actual haproxy including the previous pids to terminate
 	args := os.Args[1:]
-	if len(cmds) > 0 {
+	if len(processes) > 0 {
 		args = append(args, []string{"-x", utils.LookupHAProxySocketPath(), "-sf"}...)
 		args = append(args, pids()...)
 	}
@@ -158,16 +171,16 @@ func runInstance() {
 
 		// remove the process from tracking
 		l.Lock()
-		for i := range cmds {
-			if cmds[i].Process.Pid == cmd.Process.Pid {
-				cmds = append(cmds[:i], cmds[i+1:]...)
+		for i := range processes {
+			if processes[i].cmd.Process.Pid == cmd.Process.Pid {
+				processes = append(processes[:i], processes[i+1:]...)
 				break
 			}
 		}
 		l.Unlock()
 
 		// exit if there are no more processes running
-		if len(cmds) == 0 {
+		if len(processes) == 0 {
 			if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
 				os.Exit(cmd.ProcessState.ExitCode())
 			} else {
@@ -179,15 +192,49 @@ func runInstance() {
 	log.Notice(fmt.Sprintf("process started : pid %d status %s", cmd.Process.Pid, cmd.Status()))
 
 	l.Lock()
-	cmds = append(cmds, cmd)
-	l.Unlock()
+	defer l.Unlock()
+	// set older processes to terminating
+	for i := range processes {
+		if processes[i].terminateTime == nil {
+			t := time.Now()
+			processes[i].terminateTime = &t
+		}
+	}
+	// add the new process
+	processes = append(processes, Process{cmd: cmd})
+}
+
+func cleanupInstances() {
+	if shutdownWait == nil {
+		return
+	}
+	l.Lock()
+	defer l.Unlock()
+	// kill overstayed processes
+	tmp := processes[:0]
+	for i := range processes {
+		if processes[i].terminateTime != nil && processes[i].terminateTime.Before(time.Now().Add(-*shutdownWait)) {
+			proc, err := os.FindProcess(processes[i].cmd.Process.Pid)
+			if err != nil {
+				continue
+			}
+			err = proc.Signal(syscall.SIGTERM)
+			// if there is an error the process does not exist and can be removed
+			if err == nil {
+				log.Notice(fmt.Sprintf("process killed : pid %d", processes[i].cmd.Process.Pid))
+			}
+		} else {
+			tmp = append(tmp, processes[i])
+		}
+	}
+	processes = tmp
 }
 
 // pids returns the PID list
 func pids() []string {
-	out := make([]string, 0, len(cmds))
-	for _, c := range cmds {
-		out = append(out, strconv.Itoa(c.Process.Pid))
+	out := make([]string, 0, len(processes))
+	for _, c := range processes {
+		out = append(out, strconv.Itoa(c.cmd.Process.Pid))
 	}
 	return out
 }

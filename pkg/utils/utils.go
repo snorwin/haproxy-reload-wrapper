@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // LookupExecutablePathAbs lookup the $PATH to find the absolut path of an executable
@@ -61,4 +62,12 @@ func DisableReload() bool {
 		return strings.EqualFold(str, "true")
 	}
 	return false
+}
+
+func ShutdownWait() *time.Duration {
+	d, err := time.ParseDuration(os.Getenv("SHUTDOWN_WAIT"))
+	if err != nil {
+		return nil
+	}
+	return &d
 }
